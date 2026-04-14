@@ -260,4 +260,8 @@ Amat Raçi
 
 Full Stack Developer candidate
 
+GitHub: https://github.com/amatraci
+LinkedIn: https://www.linkedin.com/in/amat-ra%C3%A7i-b395ab390/
+
 This project was completed as part of a take-home assignment.
+
