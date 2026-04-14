@@ -61,6 +61,9 @@ fullstack-takehome/
 │   ├── models.py
 │   ├── tasks.py
 │   └── requirements.txt
+├── assets/
+│   ├── ui.png
+│   └── swagger.png
 ├── frontend/
 │   └── index.html
 ├── tests/
