@@ -6,16 +6,6 @@ This application allows users to submit a number, processes it in parallel using
 
 ---
 
-## 📸 Screenshots
-
-### UI
-![App UI](assets/ui.png)
-
-### API Docs
-![Swagger](assets/swagger.png)
-
----
-
 ## 🚀 Features
 
 - FastAPI REST API
@@ -65,6 +55,7 @@ Frontend → FastAPI → Celery → Redis → Worker(s)
 ```
 fullstack-takehome/
 ├── app/
+│   ├── __init__.py
 │   ├── celery_app.py
 │   ├── main.py
 │   ├── models.py
@@ -78,7 +69,8 @@ fullstack-takehome/
 ├── Dockerfile
 ├── README.md
 ├── answers.md
-└── .gitignore
+├── .gitignore
+└── pytest.ini
 ```
 
 ---
@@ -242,15 +234,11 @@ pytest -v
 
 ## 📸 Screenshot
 
-_Add your screenshot here:_
-
-```
-assets/ui.png
-```
-
-```markdown
+### UI
 ![App UI](assets/ui.png)
-```
+
+### API Docs
+![Swagger](assets/swagger.png)
 
 ---
 
