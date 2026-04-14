@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+celery
+redis
+python-multipart
+pytest
+httpx

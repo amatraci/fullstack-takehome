@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Mini App Request</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f6fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+        }
+
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            width: 460px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #444;
+            margin-bottom: 16px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input {
+            padding: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        button {
+            padding: 10px 14px;
+            cursor: pointer;
+            border: 1px solid #bbb;
+            background: #fff;
+            border-radius: 6px;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            margin-top: 12px;
+            display: none;
+            color: #444;
+            font-size: 14px;
+        }
+
+        .result {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f1f2f6;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .success {
+            border-left: 5px solid green;
+        }
+
+        .error {
+            border-left: 5px solid red;
+        }
+
+        .info {
+            border-left: 5px solid #3b82f6;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background: #ddd;
+            border-radius: 5px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: green;
+            transition: width 0.3s;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .history-box {
+            margin-top: 20px;
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .history-box h4 {
+            margin: 0 0 10px 0;
+        }
+
+        .history-list {
+            margin: 0;
+            padding-left: 18px;
+            color: #333;
+        }
+
+        .history-list li {
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .muted {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .chunk-list {
+            margin-top: 8px;
+            padding-left: 18px;
+        }
+
+        .chunk-list li {
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Mini App Request</h2>
+    <p>Enter a non-negative number to start a parallel background job.</p>
+
+    <div class="input-row">
+        <input type="number" id="number" value="10" min="0" />
+        <button id="startBtn" onclick="startJob()">Start Job</button>
+    </div>
+
+    <div class="spinner" id="spinner">⏳ Processing...</div>
+
+    <div id="result" class="result"></div>
+
+    <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+    </div>
+
+    <div class="actions">
+        <button id="resetBtn" onclick="resetForm()" style="display:none;">
+            Submit another job
+        </button>
+
+        <button id="retryBtn" onclick="retryJob()" style="display:none;">
+            Retry
+        </button>
+    </div>
+
+    <div class="history-box">
+        <h4>Previous Jobs</h4>
+        <ul id="historyList" class="history-list"></ul>
+        <div id="historyEmpty" class="muted">No jobs yet.</div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8000";
+
+    let interval = null;
+    let history = [];
+
+    function startJob() {
+        const numberInput = document.getElementById("number");
+        const number = numberInput.value;
+        const btn = document.getElementById("startBtn");
+        const spinner = document.getElementById("spinner");
+        const resultDiv = document.getElementById("result");
+        const progressFill = document.getElementById("progressFill");
+        const retryBtn = document.getElementById("retryBtn");
+        const resetBtn = document.getElementById("resetBtn");
+
+        if (number === "" || isNaN(number) || parseInt(number, 10) < 0) {
+            resultDiv.style.display = "block";
+            resultDiv.className = "result error";
+            resultDiv.innerHTML = `
+                <b>Status:</b> ERROR<br>
+                <b>Message:</b> Please enter a valid non-negative number.
+            `;
+            return;
+        }
+
+        if (interval) {
+            clearInterval(interval);
+            interval = null;
+        }
+
+        btn.disabled = true;
+        retryBtn.style.display = "none";
+        resetBtn.style.display = "none";
+        spinner.style.display = "block";
+        progressFill.style.width = "0%";
+
+        resultDiv.style.display = "block";
+        resultDiv.className = "result info";
+        resultDiv.innerHTML = `
+            <b>Status:</b> PENDING<br>
+            Creating job...
+        `;
+
+        fetch(`${API_BASE}/jobs`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ number: parseInt(number, 10) })
+        })
+        .then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.detail || "Failed to create job");
+            }
+            return data;
+        })
+        .then(data => {
+            pollStatus(data.job_id);
+        })
+        .catch(error => {
+            spinner.style.display = "none";
+            btn.disabled = false;
+            retryBtn.style.display = "inline-block";
+            resultDiv.className = "result error";
+            resultDiv.innerHTML = `
+                <b>Status:</b> ERROR<br>
+                <b>Something went wrong:</b><br>
+                ${error.message}
+            `;
+        });
+    }
+
+    function pollStatus(jobId) {
+        const resultDiv = document.getElementById("result");
+        const progressFill = document.getElementById("progressFill");
+        const spinner = document.getElementById("spinner");
+        const resetBtn = document.getElementById("resetBtn");
+        const retryBtn = document.getElementById("retryBtn");
+        const startBtn = document.getElementById("startBtn");
+
+        interval = setInterval(() => {
+            fetch(`${API_BASE}/jobs/${jobId}`)
+                .then(async (res) => {
+                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data.detail || "Failed to fetch job status");
+                    }
+                    return data;
+                })
+                .then(data => {
+                    resultDiv.style.display = "block";
+
+                    if (data.status === "SUCCESS") {
+                        clearInterval(interval);
+                        interval = null;
+
+                        spinner.style.display = "none";
+                        resultDiv.className = "result success";
+
+                        const chunksHtml = data.result.chunks && data.result.chunks.length > 0
+                            ? `<ul class="chunk-list">${data.result.chunks.map(
+                                c => `<li><b>${c.start}-${c.end}</b>: ${c.partial_sum}</li>`
+                              ).join("")}</ul>`
+                            : "No chunk data";
+
+                        const durationHtml = data.result.duration !== null && data.result.duration !== undefined
+                            ? `<b>Duration:</b> ${data.result.duration}s<br>`
+                            : "";
+
+                        resultDiv.innerHTML = `
+                            <b>Job ID:</b> ${data.job_id}<br>
+                            <b>Status:</b> ${data.status}<br>
+                            <b>Result:</b> ${data.result.result}<br>
+                            ${durationHtml}
+                            <b>Message:</b> ${data.result.message}<br>
+                            <b>Chunks:</b>
+                            ${chunksHtml}
+                        `;
+
+                        progressFill.style.width = "100%";
+                        resetBtn.style.display = "inline-block";
+                        retryBtn.style.display = "none";
+                        startBtn.disabled = true;
+
+                        addToHistory(data);
+                    } else if (data.status === "FAILURE") {
+                        clearInterval(interval);
+                        interval = null;
+
+                        spinner.style.display = "none";
+                        resultDiv.className = "result error";
+                        resultDiv.innerHTML = `
+                            <b>Status:</b> ERROR<br>
+                            <b>Something went wrong:</b><br>
+                            ${data.error || "Unknown error"}
+                        `;
+
+                        retryBtn.style.display = "inline-block";
+                        startBtn.disabled = false;
+                    } else {
+                        resultDiv.className = "result info";
+                        resultDiv.innerHTML = `
+                            <b>Job ID:</b> ${jobId}<br>
+                            <b>Status:</b> ${data.status}<br>
+                            Processing...
+                        `;
+
+                        let currentWidth = parseInt(progressFill.style.width, 10) || 0;
+                        progressFill.style.width = Math.min(currentWidth + 10, 90) + "%";
+                    }
+                })
+                .catch(error => {
+                    clearInterval(interval);
+                    interval = null;
+
+                    spinner.style.display = "none";
+                    resultDiv.className = "result error";
+                    resultDiv.innerHTML = `
+                        <b>Status:</b> ERROR<br>
+                        <b>Something went wrong:</b><br>
+                        ${error.message}
+                    `;
+
+                    document.getElementById("retryBtn").style.display = "inline-block";
+                    document.getElementById("startBtn").disabled = false;
+                });
+        }, 1000);
+    }
+
+    function addToHistory(data) {
+        history.unshift({
+            jobId: data.job_id,
+            result: data.result.result,
+            duration: data.result.duration,
+            message: data.result.message
+        });
+
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const historyList = document.getElementById("historyList");
+        const historyEmpty = document.getElementById("historyEmpty");
+
+        if (history.length === 0) {
+            historyList.innerHTML = "";
+            historyEmpty.style.display = "block";
+            return;
+        }
+
+        historyEmpty.style.display = "none";
+        historyList.innerHTML = history.map(item => `
+          <li>
+              <b>${item.jobId}</b><br>
+              Result: ${item.result}
+              ${item.duration !== null && item.duration !== undefined ? ` | Duration: ${item.duration}s` : ""}
+              <br>
+              <span class="muted">${item.message}</span>
+          </li>
+      `).join("");
+    }
+
+    function resetForm() {
+        if (interval) {
+            clearInterval(interval);
+            interval = null;
+        }
+
+        document.getElementById("result").style.display = "none";
+        document.getElementById("result").className = "result";
+        document.getElementById("result").innerHTML = "";
+        document.getElementById("resetBtn").style.display = "none";
+        document.getElementById("retryBtn").style.display = "none";
+        document.getElementById("progressFill").style.width = "0%";
+        document.getElementById("spinner").style.display = "none";
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("number").focus();
+    }
+
+    function retryJob() {
+        document.getElementById("retryBtn").style.display = "none";
+        startJob();
+    }
+</script>
+
+</body>
+</html>
