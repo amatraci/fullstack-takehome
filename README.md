@@ -254,7 +254,10 @@ answers.md
 ```
 
 ---
-
 ## 👨‍💻 Author
 
-Full Stack Developer Take-home Assignment
+Amat Raçi
+
+Full Stack Developer candidate
+
+This project was completed as part of a take-home assignment.
